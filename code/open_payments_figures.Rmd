@@ -1,0 +1,225 @@
+---
+title: "Open Payments Figures"
+author: "Quinn White"
+date: "`r Sys.Date()`"
+output: 
+   pdf_document:
+     toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width="100%", fig.height=4, echo=FALSE)
+library(tidyverse)
+library(here)
+
+
+theme_c <- function(...){ 
+   # font <- "Helvetica"   #assign font family up front
+    theme_bw() %+replace%    #replace elements we want to change
+    
+    theme(
+      
+      
+      #text elements
+      plot.title = element_text(             #title
+                   size = 13,                #set font size
+                   face = 'plain',            #bold typeface
+                   hjust = .5,
+                   vjust = 3),               
+      
+      plot.subtitle = element_text(          #subtitle
+                   size = 11,
+                   hjust = .5,
+                   face = 'italic',
+                   vjust = 3),               #font size
+      
+      axis.title = element_text(             #axis titles
+                   size = 12),               #font size
+      
+      axis.text = element_text(              #axis text
+                   size = 9),
+      legend.text = element_text(size = 12),
+      legend.title = element_text(size=14),
+      # t, r, b, l
+      plot.margin = unit(c(1,.5,.5,.5), "cm"),
+      legend.position = "right",
+      strip.text.x = element_text(size = 12,color="white"),
+      strip.background = element_rect(fill = "#3E3D3D")
+      ) %+replace%
+      theme(...)
+   
+}
+
+
+```
+
+
+# Making Many Identical Payments on the Same Date
+
+Looked at several examples where:
+
+- All payments for a company on a specific date where the same
+- There were more than 20 identical payments
+- Total amount of payments was greater than $100
+
+
+```{r}
+
+# general payments data file
+general <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+                             nrows=1e6) %>%
+  mutate(date = as_date(Date_of_Payment, format = "%m/%d/%Y"))  
+
+
+
+max_example <- general %>%
+  mutate(date = as_date(Date_of_Payment, format = "%m/%d/%Y"))  %>%
+  filter(Nature_of_Payment_or_Transfer_of_Value == "Food and Beverage") %>%
+  group_by(Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name, date) %>%
+  mutate(n_payments =n(),
+            unique = n_distinct(Total_Amount_of_Payment_USDollars)) %>%
+  ungroup() %>%
+  filter(unique ==1 & n_payments >20 & Total_Amount_of_Payment_USDollars >100)  %>%
+  select(date, 
+         Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name, 
+         Total_Amount_of_Payment_USDollars,
+         Covered_Recipient_NPI,
+         n_payments)
+
+
+max_example <- max_example %>%
+  group_by(Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name) %>%
+  # only keep one date per company
+  # SYnthes GmbH is the only one with repeats
+  slice_max(n=1, order_by=date) %>%
+  ungroup()
+
+```
+
+## Plot Including All Examples
+
+```{r, fig.width=10, fig.height=7}
+
+# faceted bar chart for example companies 
+
+max_example %>%
+  rename(company = Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name) %>%
+  mutate(Covered_Recipient_NPI = as.character(Covered_Recipient_NPI),
+         company = paste0(company,"\n", format(date, "%b %d %Y"))) %>%
+  mutate(company = gsub(" 2021", ", 2021", company)) %>%
+  ggplot(aes(x=Covered_Recipient_NPI, y = Total_Amount_of_Payment_USDollars)) +
+  geom_bar(stat="identity") +
+  facet_wrap(~fct_reorder(company,
+                          Total_Amount_of_Payment_USDollars,
+                          .desc=TRUE),
+             scales="free_x") +
+  theme_c(axis.text.x= element_text(angle=60, size=4)) +
+  scale_y_continuous(labels=scales::dollar) +
+  labs(y = "Total Amount Paid in Dollars",
+       x = "Covered Recipient Identifier (NPI)",
+       title= "Examples Where Companies Paid an Identical\nAmount to Many Providers on a Single Date")
+
+```
+
+## Individual Plots for Each Example
+
+```{r}
+
+companies <- unique(max_example$Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name)
+
+walk(companies, ~{
+  
+  company_data <- max_example %>%
+    rename(company = Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name) %>%
+    filter(company == .x) %>%
+    mutate(Covered_Recipient_NPI = as.character(Covered_Recipient_NPI),
+           company = paste0(company," on ", format(date, "%b %d %Y"))) %>%
+    mutate(company = gsub(" 2021", ", 2021", company)) 
+    
+  plt <- company_data %>%
+    ggplot(aes(x=Covered_Recipient_NPI, y = Total_Amount_of_Payment_USDollars)) +
+    geom_bar(stat="identity") +
+    theme_c(axis.text.x= element_text(angle=60, size=5)) +
+    scale_y_continuous(labels=scales::dollar) +
+    labs(y = "Total Amount Paid in Dollars",
+         x = "Covered Recipient Identifier (NPI)",
+         title = unique(company_data$company),
+         subtitle = "Example Where a Company Paid an Identical\nAmount to Many Providers on a Single Date")
+  
+  print(plt)
+    
+})
+
+```
+
+
+
+
+
+```{r,eval=FALSE}
+
+
+
+
+general %>%
+  filter(grepl("Johnson", Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name)) %>%
+  mutate(date = as_date(Date_of_Payment, format = "%m/%d/%Y")) %>%
+  filter(Nature_of_Payment_or_Transfer_of_Value == "Food and Beverage") %>%
+  group_by(date) %>%
+  mutate(n=n()) %>%
+  ungroup() %>%
+  filter(n==max(n)) %>% 
+  select(Total_Amount_of_Payment_USDollars, date,Covered_Recipient_NPI,n) %>%
+  filter(date=="2021-10-04")
+  
+
+
+general %>%
+  filter(
+    Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name ==
+           max_example$Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name & 
+           date ==max_example$date & 
+           Nature_of_Payment_or_Transfer_of_Value == "Food and Beverage") %>%
+  as_tibble() %>%
+  select(Total_Amount_of_Payment_USDollars,Covered_Recipient_NPI,date, 
+         company = Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name) %>%
+  group_by(Total_Amount_of_Payment_USDollars,company) %>%
+  summarize(n=n()) %>%
+  arrange(desc(n))
+# 
+# for
+# 11,408,131
+# 
+# 1:1e3
+# 
+# 1e3
+
+v <- rep(1:1e3, 1000000)
+
+
+general %>%
+  select(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name ) %>%
+  distinct() %>%
+  group_by(Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name) %>%
+  summarize(n=n()) %>%
+  arrange(desc(n))
+
+
+  filter(grepl("Amgen", Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name))
+
+```
+
+```{r,eval=FALSE}
+library(sqldf)
+
+filter = 'tr.exe -d \'^"\' '
+
+iris2 <- read.csv.sql('data/OP_DTL_GNRL_PGYR2021_P01202023.csv', 
+    sql = "select * from file where Submitting_Applicable_Manufacturer_or_Applicable_GPO_Name = 'Genetech, Inc.' ",
+    nrows=50)
+
+
+df <- data.table::fread('data/OP_DTL_GNRL_PGYR2021_P01202023.csv', nrows)
+
+```
+
