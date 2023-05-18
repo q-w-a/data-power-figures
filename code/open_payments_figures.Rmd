@@ -8,7 +8,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, out.width="100%", fig.height=4, echo=FALSE)
+knitr::opts_chunk$set(echo = TRUE, out.width="100%", fig.height=4, echo=FALSE,cache=TRUE, message=FALSE, warning=FALSE)
 library(tidyverse)
 library(here)
 
@@ -23,9 +23,10 @@ theme_c <- function(...){
       #text elements
       plot.title = element_text(             #title
                    size = 13,                #set font size
-                   face = 'plain',            #bold typeface
+                   face = 'bold',            #bold typeface
                    hjust = .5,
-                   vjust = 3),               
+                   vjust = 3,
+                   margin=margin(0,0,2,0)),               
       
       plot.subtitle = element_text(          #subtitle
                    size = 11,
@@ -121,6 +122,30 @@ max_example %>%
 
 ```
 
+
+## Table of All Examples
+
+```{r}
+
+library(kableExtra)
+
+max_example %>%
+  mutate(Total_Amount_of_Payment_USDollars=paste0("$",Total_Amount_of_Payment_USDollars)) %>%
+  select(Company = Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name,
+         Date=date,
+        `Number of Payments` = n_payments,
+        `Payment` = Total_Amount_of_Payment_USDollars) %>%
+  distinct()%>%
+  arrange(desc(`Number of Payments`)) %>%
+  kbl(caption = "Companies that Made Identical Payments to Many Providers on a Single Date",
+      booktabs=TRUE) %>%
+  kable_styling(latex_options="hold_position")
+
+
+
+```
+
+
 ## Individual Plots for Each Example
 
 ```{r}
@@ -154,6 +179,11 @@ walk(companies, ~{
 
 
 
+
+
+```{r}
+
+```
 
 
 ```{r,eval=FALSE}
