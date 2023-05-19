@@ -64,7 +64,10 @@ Looked at several examples where:
 - Total amount of payments was greater than $100
 
 
-```{r}
+This is not an exhaustive search through the entire dataset (11,408,131 rows).
+
+
+```{r load-data}
 
 # general payments data file
 general <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
@@ -94,6 +97,10 @@ max_example <- max_example %>%
   # SYnthes GmbH is the only one with repeats
   slice_max(n=1, order_by=date) %>%
   ungroup()
+
+
+rm(general)
+
 
 ```
 
@@ -137,7 +144,7 @@ max_example %>%
         `Payment` = Total_Amount_of_Payment_USDollars) %>%
   distinct()%>%
   arrange(desc(`Number of Payments`)) %>%
-  kbl(caption = "Companies that Made Identical Payments to Many Providers on a Single Date",
+  kbl(caption = "Examples of Companies that Made Identical Payments to Many Providers on a Single Date",
       booktabs=TRUE) %>%
   kable_styling(latex_options="hold_position")
 
@@ -186,7 +193,312 @@ walk(companies, ~{
 ```
 
 
+# Considering Provider Types by Year
+
+
+```{r get-2021, fig.width=9,fig.height=4}
+
+# 11408131 rows total
+general_names <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+                             skip=0,nrows=2)  %>%
+  colnames()
+
+
+
+###############################################################
+# ITERATE BY CHUNK TO HANDLE LARGE FILE SIZES (2021)
+###############################################################
+
+# get number of rows in full dataset in the terminal with:
+# wc -l OP_DTL_GNRL_PGYR2021_P01202023.csv
+chunk_size <- ceiling(1140813/20)
+
+chunks <- tibble(end = (1:20)*chunk_size) %>%
+  mutate(begin =  lag(end,n=1)) %>%
+  # first observation will have NA observation when we lag
+  # so set this one to 1
+  mutate(begin = ifelse(is.na(begin),1, begin),
+         begin =ifelse(begin!=1, begin+1, begin))
+
+
+
+type_summary <- pmap_df(chunks, function(begin,end) {
+  
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+          skip = begin,
+          nrows = chunk_size,
+          col.names = general_names,
+          colClasses="character") 
+    # number of payments in each category
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type) %>%
+      summarize(n = n())
+  })
+
+
+type_summary_2021 <- type_summary %>%
+  group_by(Covered_Recipient_Type) %>%
+  summarize(number_unique = sum(n)) 
+
+
+
+
+###############################################################
+# ITERATE BY CHUNK TO HANDLE LARGE FILE SIZES (2019)
+###############################################################
+
+# get number of rows in full dataset in the terminal with:
+# wc -l OP_DTL_GNRL_PGYR2021_P01202023.csv
+chunk_size <- ceiling(1140813/20)
+
+chunks <- tibble(end = (1:20)*chunk_size) %>%
+  mutate(begin =  lag(end,n=1)) %>%
+  # first observation will have NA observation when we lag
+  # so set this one to 1
+  mutate(begin = ifelse(is.na(begin),1, begin),
+         begin =ifelse(begin!=1, begin+1, begin))
+
+
+
+type_summary_2021 <- pmap_df(chunks, function(begin,end) {
+  
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+          skip = begin,
+          nrows = chunk_size,
+          col.names = general_names,
+          colClasses="character") 
+    # number of payments in each category
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type) %>%
+      summarize(n = n())
+  })
+
+
+
+
+type_summary_2021 <- type_summary_2021 %>%
+  group_by(Covered_Recipient_Type) %>%
+  summarize(n = sum(n)) %>%
+  mutate(year = 2021)
+
+
+
+
+```
+
+
+
+
+```{r get-2019}
+
+
+# 11408131 rows total
+general_names <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2019_P01202023.csv'),
+                             skip=0,nrows=2)  %>%
+  colnames()
+
+
+
+###############################################################
+# ITERATE BY CHUNK TO HANDLE LARGE FILE SIZES (2019)
+###############################################################
+
+# get number of rows in full dataset in the terminal with:
+# wc -l OP_DTL_GNRL_PGYR2019_P01202023.csv
+chunk_size <- ceiling(1269126/10)
+
+chunks <- tibble(end = (1:10)*chunk_size) %>%
+  mutate(begin =  lag(end,n=1)) %>%
+  # first observation will have NA observation when we lag
+  # so set this one to 1
+  mutate(begin = ifelse(is.na(begin),1, begin),
+         begin =ifelse(begin!=1, begin+1, begin))
+
+
+
+type_summary_2019 <- pmap_df(chunks, function(begin,end) {
+  
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2019_P01202023.csv'),
+          skip = begin,
+          nrows = chunk_size,
+          col.names = general_names,
+          colClasses="character") 
+    # number of payments in each category
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type) %>%
+      summarize(n = n())
+  })
+
+
+type_summary_2019 <- type_summary_2019 %>%
+  group_by(Covered_Recipient_Type) %>%
+  summarize(n = sum(n))  %>%
+  mutate(year=2019)
+
+
+
+```
+
+
+
+```{r,fig.width=9,fig.height=4}
+
+########################################
+# faceted provider type by year plot
+########################################
+
+
+both <- type_summary_2021 %>%
+  bind_rows(type_summary_2019)
+
+both %>%
+  mutate(Covered_Recipient_Type= gsub("Covered Recipient ", "",
+                                      Covered_Recipient_Type),
+         Covered_Recipient_Type = gsub(" ", "\n", Covered_Recipient_Type)) %>%
+  ggplot(aes(x= fct_reorder(Covered_Recipient_Type,n, .desc=TRUE),
+             y = n)) +
+  geom_bar(stat="identity") +
+  facet_grid(~year, space="free", scales="free_y") +
+  theme_c(axis.title.x = element_text(margin=margin(15,0,0,0),
+                                      size=15),
+          axis.text.x=element_text(size=12),
+          axis.title.y =element_text(size=15,angle=90),
+           plot.title = element_text(face="bold", hjust = .5, size=14, margin=margin(0,0,5,0)),
+          plot.subtitle = element_text(face="italic", size=12,margin=margin(0,0,9,0)),
+          strip.text.x = element_text(face="bold",
+                                      size=16, 
+                                      color="white",
+                                      margin=margin(9,0,9,0))) +
+  labs(x = "Covered Recipient Type",
+       y = "Number of Observations",
+       title = "Number of Payments to Each Type of Covered Recipient",
+       subtitle = "By Year") +
+  scale_y_continuous(labels=scales::comma)
+
+
+```
+
+
+
+```{r,fig.height=6,fig.width=8}
+
+
+both  %>% group_by(year) %>%
+  mutate(total = sum(n)) %>%
+  mutate(prop = n/total) %>%
+  mutate(Covered_Recipient_Type= gsub("Covered Recipient ", "",
+                                      Covered_Recipient_Type)) %>%
+  ggplot(aes(x= factor(year),
+             y = prop,
+             fill = Covered_Recipient_Type)) +
+  geom_bar(stat="identity", position="stack") +
+  theme_c(axis.text.x=element_text(size=13),
+          axis.title = element_text(size=13),
+          plot.title = element_text(face="bold", hjust = .5, size=14, margin=margin(0,0,5,0)),
+          plot.subtitle = element_text(face="italic", size=12,margin=margin(0,0,9,0))) +
+  labs(y="Proportion of Payments",
+       x="Year",
+       fill = "Covered Recipient Type",
+       title = "Proportion of Payments Going to Each Covered Recipient Type",
+       subtitle = "By Year") +
+  viridis::scale_fill_viridis(discrete=TRUE,end=.97)
+
+
+```
+
+
+
 ```{r,eval=FALSE}
+
+
+###############################################################
+# ITERATE BY CHUNK TO HANDLE LARGE FILE SIZES (2019)
+###############################################################
+
+# get number of rows in full dataset in the terminal with:
+# wc -l OP_DTL_GNRL_PGYR2021_P01202023.csv
+chunk_size <- ceiling(1140813/20)
+
+chunks <- tibble(end = (1:20)*chunk_size) %>%
+  mutate(begin =  lag(end,n=1)) %>%
+  # first observation will have NA observation when we lag
+  # so set this one to 1
+  mutate(begin = ifelse(is.na(begin),1, begin),
+         begin =ifelse(begin!=1, begin+1, begin))
+
+
+
+type_summary <- pmap_df(chunks, function(begin,end) {
+  
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+          skip = begin,
+          nrows = chunk_size,
+          col.names = general_names,
+          colClasses="character") 
+    # number of payments in each category
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type) %>%
+      summarize(n = n())
+  })
+
+
+
+
+type_summary_2021 <- type_summary %>%
+  group_by(Covered_Recipient_Type) %>%
+  summarize(n = sum(n)) 
+
+
+
+```
+
+
+
+
+```{r,eval=FALSE}
+
+# to try to get by id we would need to go over entire dataset
+type_summary <- pmap_df(chunks, function(begin,end) {
+  
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+          skip = begin,
+          nrows = chunk_size,
+          col.names = general_names,
+          colClasses="character") %>%
+      mutate(ID = case_when(
+        Covered_Recipient_Type ==  "Covered Recipient Teaching Hospital" ~Teaching_Hospital_ID,
+        # NPI almost always reported, but this catches cases where it is blank
+        Covered_Recipient_NPI != "" ~ Covered_Recipient_NPI,
+        Covered_Recipient_NPI == "" ~ Covered_Recipient_Profile_ID))
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type) %>%
+      summarize(number_ids_in_type = n_distinct(ID))
+  })
+
+```
+
+
+```{r,eval=FALSE}
+
+
+distinct_rows <- test %>% distinct() %>% nrow()
+all_rows <-  test %>%  nrow()
+
+distinct_rows==all_rows
+
+
+# no observations are blank in all 3
+dat %>% filter(Covered_Recipient_Profile_ID == "" &Teaching_Hospital_ID=="" & Covered_Recipient_NPI=="") %>% as_tibble() %>% glimpse()
 
 
 
