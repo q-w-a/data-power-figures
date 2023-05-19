@@ -187,20 +187,17 @@ walk(companies, ~{
 
 
 
-
-```{r}
-
-```
-
-
 # Considering Provider Types by Year
 
+
+Considering payments by covered recipient type.
 
 ```{r get-2021, fig.width=9,fig.height=4}
 
 # 11408131 rows total
-general_names <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
-                             skip=0,nrows=2)  %>%
+general_names <- data.table::fread(
+  here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+  skip=0,nrows=2)  %>%
   colnames()
 
 
@@ -225,10 +222,11 @@ chunks <- tibble(end = (1:20)*chunk_size) %>%
 type_summary <- pmap_df(chunks, function(begin,end) {
   
   message(paste("skip =", begin, "end_index = ",begin+chunk_size))
-  
+    n_rows <- ifelse(begin+chunk_size > 1140813,1140813-begin, chunk_size )
+
     dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
           skip = begin,
-          nrows = chunk_size,
+          nrows = n_rows,
           col.names = general_names,
           colClasses="character") 
     # number of payments in each category
@@ -240,7 +238,7 @@ type_summary <- pmap_df(chunks, function(begin,end) {
 
 type_summary_2021 <- type_summary %>%
   group_by(Covered_Recipient_Type) %>%
-  summarize(number_unique = sum(n)) 
+  summarize(n = sum(n)) 
 
 
 
@@ -264,11 +262,13 @@ chunks <- tibble(end = (1:20)*chunk_size) %>%
 
 type_summary_2021 <- pmap_df(chunks, function(begin,end) {
   
+   n_rows <- ifelse(begin+chunk_size > 1140813,1140813-begin, chunk_size )
+
   message(paste("skip =", begin, "end_index = ",begin+chunk_size))
   
     dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
           skip = begin,
-          nrows = chunk_size,
+          nrows = n_rows,
           col.names = general_names,
           colClasses="character") 
     # number of payments in each category
@@ -287,6 +287,119 @@ type_summary_2021 <- type_summary_2021 %>%
 
 
 
+
+```
+
+
+```{r}
+
+
+###############################################################
+# ITERATE BY CHUNK TO HANDLE LARGE FILE SIZES (2021)
+###############################################################
+
+# get number of rows in full dataset in the terminal with:
+# wc -l OP_DTL_GNRL_PGYR2021_P01202023.csv
+chunk_size <- ceiling(1140813/20)
+
+chunks <- tibble(end = (1:20)*chunk_size) %>%
+  mutate(begin =  lag(end,n=1)) %>%
+  # first observation will have NA observation when we lag
+  # so set this one to 1
+  mutate(begin = ifelse(is.na(begin),1, begin),
+         begin =ifelse(begin!=1, begin+1, begin))
+
+
+
+primary_type_summary_2021 <- pmap_df(chunks, function(begin,end) {
+  
+  n_rows <- ifelse(begin+chunk_size > 1140813,1140813-begin, chunk_size )
+  
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+          skip = begin,
+          nrows = n_rows,
+          col.names = general_names,
+          colClasses="character") 
+    # number of payments in each category
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type, Covered_Recipient_Primary_Type_1) %>%
+      summarize(n = n())
+  })
+
+
+primary_type_summary_2021 <- primary_type_summary_2021 %>%
+  group_by(Covered_Recipient_Type,Covered_Recipient_Primary_Type_1) %>%
+  summarize(n = sum(n)) 
+
+
+# type_summary <- pmap_df(chunks, function(begin,end) {
+#     n_rows <- ifelse(begin+chunk_size > 1140813,1140813-begin, chunk_size )
+# 
+#   message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+#   
+#     dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+#           skip = begin,
+#           nrows = n_rows,
+#           col.names = general_names,
+#           colClasses="character") 
+#     # number of payments in each category
+#     by_type <- dat %>%
+#       group_by(Nature_of_Payment_or_Transfer_of_Value) %>%
+#       summarize(n = n())
+#   })
+# 
+# 
+# type_summary_2021 <- type_summary %>%
+#   group_by(Nature_of_Payment_or_Transfer_of_Value) %>%
+#   summarize(n = sum(n)) 
+
+
+
+
+###############################################################
+# ITERATE BY CHUNK TO HANDLE LARGE FILE SIZES (2019)
+###############################################################
+
+# get number of rows in full dataset in the terminal with:
+# wc -l OP_DTL_GNRL_PGYR2021_P01202023.csv
+chunk_size <- ceiling(1140813/20)
+
+chunks <- tibble(end = (1:20)*chunk_size) %>%
+  mutate(begin =  lag(end,n=1)) %>%
+  # first observation will have NA observation when we lag
+  # so set this one to 1
+  mutate(begin = ifelse(is.na(begin),1, begin),
+         begin =ifelse(begin!=1, begin+1, begin))
+
+
+
+type_summary_2021 <- pmap_df(chunks, function(begin,end) {
+  
+    n_rows <- ifelse(begin+chunk_size > 1140813,1140813-begin, chunk_size )
+
+    
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2021_P01202023.csv'),
+          skip = begin,
+          nrows = n_rows,
+          col.names = general_names,
+          colClasses="character") 
+    # number of payments in each category
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type) %>%
+      summarize(n = n())
+  })
+
+
+
+
+type_summary_2021 <- type_summary_2021 %>%
+  group_by(Covered_Recipient_Type) %>%
+  summarize(n = sum(n)) %>%
+  mutate(year = 2021)
 
 ```
 
@@ -322,11 +435,14 @@ chunks <- tibble(end = (1:10)*chunk_size) %>%
 
 type_summary_2019 <- pmap_df(chunks, function(begin,end) {
   
+    n_rows <- ifelse(begin+chunk_size > 1140813,1140813-begin, chunk_size )
+
+  
   message(paste("skip =", begin, "end_index = ",begin+chunk_size))
   
     dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2019_P01202023.csv'),
           skip = begin,
-          nrows = chunk_size,
+          nrows = n_rows,
           col.names = general_names,
           colClasses="character") 
     # number of payments in each category
@@ -343,8 +459,39 @@ type_summary_2019 <- type_summary_2019 %>%
 
 
 
+
+
+
+primary_type_summary_2019 <- pmap_df(chunks, function(begin,end) {
+  
+  n_rows <- ifelse(begin+chunk_size > 1140813,1140813-begin, chunk_size )
+  
+  message(paste("skip =", begin, "end_index = ",begin+chunk_size))
+  
+    dat <- data.table::fread(here('data/OP_DTL_GNRL_PGYR2019_P01202023.csv'),
+          skip = begin,
+          nrows = n_rows,
+          col.names = general_names,
+          colClasses="character") 
+    # number of payments in each category
+    by_type <- dat %>%
+      group_by(Covered_Recipient_Type, Covered_Recipient_Primary_Type_1) %>%
+      summarize(n = n())
+  })
+
+
+primary_type_summary_2019 <- primary_type_summary_2019 %>%
+  group_by(Covered_Recipient_Type,Covered_Recipient_Primary_Type_1) %>%
+  summarize(n = sum(n)) 
+
+
+
+
+
 ```
 
+
+## By Covered Recipient Type 
 
 
 ```{r,fig.width=9,fig.height=4}
@@ -376,7 +523,7 @@ both %>%
                                       color="white",
                                       margin=margin(9,0,9,0))) +
   labs(x = "Covered Recipient Type",
-       y = "Number of Observations",
+       y = "Number of Payments",
        title = "Number of Payments to Each Type of Covered Recipient",
        subtitle = "By Year") +
   scale_y_continuous(labels=scales::comma)
@@ -412,6 +559,122 @@ both  %>% group_by(year) %>%
 
 ```
 
+
+
+
+## By Primary Type
+
+
+
+```{r,fig.width=11,fig.height=6}
+
+########################################
+# faceted provider type by year plot
+########################################
+
+primary_type_summary_2019$year <- 2019
+primary_type_summary_2021$year <- 2021
+
+
+both_primary <- primary_type_summary_2021 %>%
+  bind_rows(primary_type_summary_2019)
+
+both_primary <- both_primary %>%
+  mutate(primary = case_when(
+    n < 500~  "Other", 
+    Covered_Recipient_Primary_Type_1 == "" & 
+      Covered_Recipient_Type =="Covered Recipient Teaching Hospital"   ~ "Teaching Hospital",
+    TRUE ~ Covered_Recipient_Primary_Type_1))
+
+
+
+
+primary_by_broader_type <- both_primary %>%
+  group_by(primary) %>%
+  summarize(n_prof = n_distinct(Covered_Recipient_Type),
+            prof = paste0(unique(Covered_Recipient_Type), collapse=",")) %>%
+  arrange(prof)
+
+
+
+library(cowplot)
+colors <- as.list(RColorBrewer::brewer.pal("Set3", n=12))
+
+names(colors) <- primary_by_broader_type$primary
+colors$`Doctor of Osteopathy` <- "#6074AD"
+
+plt_1 <- both_primary %>%
+  filter(Covered_Recipient_Type == "Covered Recipient Non-Physician Practitioner" &
+           primary != "Other") %>%
+  ggplot(aes(x=Covered_Recipient_Type, y = n, fill = primary)) +
+  geom_bar(stat="identity") +
+  scale_fill_manual(values=colors, name = 'Non-Physician Practitioner')
+
+l1 <- get_legend(plt_1)
+
+
+plt_2 <- both_primary %>%
+  filter(Covered_Recipient_Type == "Covered Recipient Physician" & primary !="Other") %>%
+  ggplot(aes(x=Covered_Recipient_Type, y = n, fill = primary)) +
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = colors, name ='Physician')
+
+
+l2 <- get_legend(plt_2)
+
+
+plt_3 <- both_primary %>%
+  filter(primary%in% c("Other", "Teaching Hospital")) %>%
+  ggplot(aes(x=Covered_Recipient_Type, y = n, fill = primary)) +
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = colors, name ='') +
+  guides(fill = guide_legend(nrow=6, ncol=2))
+
+l3 <- get_legend(plt_3)
+
+
+legends <- plot_grid(l1,l2, l3, nrow=3)
+
+
+
+plt <- both_primary %>%
+  mutate(primary = factor(primary, levels=primary_by_broader_type$primary)) %>%
+  mutate(Covered_Recipient_Type= gsub("Covered Recipient ", "",
+                                      Covered_Recipient_Type),
+         Covered_Recipient_Type = gsub(" ", "\n", Covered_Recipient_Type),
+         Covered_Recipient_Type = factor(Covered_Recipient_Type,
+                                         levels = c("Physician",
+                                                    "Non-Physician\nPractitioner",
+                                                    "Teaching\nHospital"))) %>%
+  ggplot(aes(x= fct_reorder(Covered_Recipient_Type,n, max,.desc=TRUE),
+             fill =primary,
+             y = n)) +
+  geom_bar(stat="identity",position="stack") +
+  facet_grid(~year, space="free", scales="free_y") +
+  theme_c(axis.title.x = element_text(margin=margin(15,0,0,0),
+                                      size=15),
+          axis.text.x=element_text(size=12),
+          axis.title.y =element_text(size=15,angle=90),
+           plot.title = element_text(face="bold", hjust = .5, size=14, margin=margin(0,0,5,0)),
+          plot.subtitle = element_text(face="italic", size=12,margin=margin(0,0,9,0)),
+          strip.text.x = element_text(face="bold",
+                                      size=16, 
+                                      color="white",
+                                      margin=margin(9,0,9,0)),
+          legend.position="none") +
+  scale_fill_manual(values=colors) +
+  labs(x = "Covered Recipient Type",
+       y = "Number of Payments",
+       title = "Number of Payments to Each Type of Covered Recipient",
+       subtitle = "By Year") +
+  scale_y_continuous(labels=scales::comma) +
+  guides(fill = guide_legend(byrow=FALSE, nrow =5))
+
+
+plot_grid(plt, legends,  ncol=2, rel_widths=c(.8,.2))
+
+
+```
 
 
 ```{r,eval=FALSE}
